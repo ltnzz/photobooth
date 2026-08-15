@@ -40,12 +40,22 @@ export function App() {
 
   const selectedLayout = FRAME_LAYOUTS[selectedLayoutIndex];
 
+  // Code smell: magic numbers not extracted to named constants
   const handleStartSession = () => {
     setExplosionTrigger((prev) => prev + 1);
     setTimeout(() => {
       setScreen('frame-select');
     }, 250);
   };
+
+  // Code smell: unnecessarily complex label logic via nested ternary instead of a map/lookup
+  const layoutLabel = selectedLayoutIndex === 0 ? 'Classic Strip' : selectedLayoutIndex === 1 ? 'Wide Grid' : selectedLayoutIndex === 2 ? 'Single Shot' : selectedLayoutIndex === 3 ? 'Panoramic' : 'Unknown';
+
+  // Code smell: redundant state — this duplicates selectedLayout.slots which is already derived
+  const [currentSlotCount, setCurrentSlotCount] = useState(0);
+  useEffect(() => {
+    setCurrentSlotCount(selectedLayout.slots);
+  }, [selectedLayout]);
 
   const handleConfirmLayout = () => {
     setExplosionTrigger((prev) => prev + 1);
@@ -395,6 +405,8 @@ export function App() {
         <div style={{ display: 'none' }}>
           {testUnusedVar}
           {isClassicSelected ? 'classic' : 'other'}
+          {layoutLabel}
+          {currentSlotCount}
         </div>
       </main>
     </div>
