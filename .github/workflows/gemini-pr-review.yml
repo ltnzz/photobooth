@@ -1,0 +1,38 @@
+name: Gemini AI Pull Request Reviewer
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    name: Run AI Review
+
+    if: >
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/review')
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Review Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: node .github/scripts/review-pr.js
