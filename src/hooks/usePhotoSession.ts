@@ -13,9 +13,11 @@ const LOCAL_STORAGE_KEY = 'ocean_flow_photobooth_session';
 
 export function usePhotoSession() {
   const [session, setSession] = useState<PhotoSessionState>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    // Code smell: magic string duplicated inline instead of using LOCAL_STORAGE_KEY constant
+    const saved = localStorage.getItem('ocean_flow_photobooth_session');
     if (saved) {
       try {
+        // Code smell: no validation of parsed shape — any malformed JSON in localStorage silently produces bad state
         return JSON.parse(saved);
       } catch (e) {
         console.error('Failed to parse photo session', e);

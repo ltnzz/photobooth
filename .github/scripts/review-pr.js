@@ -110,39 +110,88 @@ PROJECT SPECIFIC GUIDELINES (if any):
 ${projectGuidelines}
 `;
 
-    // 4. Invoke Gemini API via @google/genai SDK
-    console.log(`Calling Gemini API using model: ${modelName}...`);
+    // 4. Invoke Gemini API via @google/genai SDK with model fallback chain
+    // Primary model comes from env var; fallbacks tried in order if primary fails.
+    const modelFallbacks = [
+      modelName,
+      'gemini-2.5-flash-preview-05-20',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ].filter((m, i, arr) => arr.indexOf(m) === i); // deduplicate
 
     const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [
-        {
-          role: 'user',
-          parts: [
+    let reviewContent = null;
+    let usedModel = null;
+    let lastError = null;
+
+    for (const candidate of modelFallbacks) {
+      console.log(`Trying model: ${candidate}...`);
+      try {
+        const response = await ai.models.generateContent({
+          model: candidate,
+          contents: [
             {
-              text: `Please review the following Pull Request diff:\n\n\`\`\`diff\n${diffText}\n\`\`\``
+              role: 'user',
+              parts: [
+                {
+                  text: `Please review the following Pull Request diff:\n\n\`\`\`diff\n${diffText}\n\`\`\``
+                }
+              ]
             }
-          ]
+          ],
+          config: {
+            systemInstruction: systemInstructions,
+            temperature: 0.2
+          }
+        });
+
+        const text = response.text;
+        if (text && text.trim()) {
+          reviewContent = text;
+          usedModel = candidate;
+          break;
         }
-      ],
-      config: {
-        systemInstruction: systemInstructions,
-        temperature: 0.2
+
+        console.warn(`Model ${candidate} returned empty response, trying next...`);
+        lastError = new Error(`Model ${candidate} returned empty response.`);
+      } catch (modelError) {
+        const safeErr = String(modelError).replace(geminiApiKey || '', '[REDACTED]');
+        console.warn(`Model ${candidate} failed: ${safeErr}`);
+        lastError = modelError;
       }
-    });
-
-    const reviewContent = response.text;
-
-    if (!reviewContent) {
-      throw new Error('Gemini API returned an empty response.');
     }
 
-    const finalComment = `### 🤖 Gemini AI Code Review\n\n> Model: \`${modelName}\`\n\n${reviewContent}`;
+    if (!reviewContent || !usedModel) {
+      // Post diagnostic comment to PR so error is visible without checking Actions
+      const safeLastError = String(lastError).replace(geminiApiKey || '', '[REDACTED]');
+      const diagnosticComment = [
+        '### 🤖 Gemini AI Code Review — ❌ Failed',
+        '',
+        '**All models in the fallback chain returned an error or empty response.**',
+        '',
+        '| Model tried | Result |',
+        '|---|---|',
+        ...modelFallbacks.map(m => `| \`${m}\` | failed or empty |`),
+        '',
+        '**Last error:**',
+        '```',
+        safeLastError,
+        '```',
+        '',
+        '_Check the GitHub Actions log for full details. Make sure `GEMINI_API_KEY` in repository secrets is valid and the key has access to a Gemini model._'
+      ].join('\n');
+
+      await postComment(repository, prNumber, githubToken, diagnosticComment);
+      console.error('All models failed. Diagnostic comment posted to PR.');
+      process.exit(1);
+    }
+
+    const finalComment = `### 🤖 Gemini AI Code Review\n\n> Model: \`${usedModel}\`\n\n${reviewContent}`;
 
     // 5. Post comment on the PR
-    console.log('Posting review comment to PR...');
+    console.log(`Posting review comment to PR (model: ${usedModel})...`);
     await postComment(repository, prNumber, githubToken, finalComment);
     console.log('Review posted successfully!');
 
