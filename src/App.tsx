@@ -19,6 +19,7 @@ const FRAME_LAYOUTS: FrameLayout[] = [
 ];
 
 export function App() {
+  const testUnusedVar = "This is a mock code smell for AI review test";
   const { t, lang, changeLanguage } = useTranslation();
   const {
     photos,
