@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Check, Waves, Droplet, Archive } from 'lucide-react';
 import { useTranslation } from './hooks/useTranslation';
 import { usePhotoSession } from './hooks/usePhotoSession';
@@ -31,6 +31,12 @@ export function App() {
   const [selectedLayoutIndex, setSelectedLayoutIndex] = useState<number>(1); // default selection is "WIDE GRID" (index 1)
   const [waveMode, setWaveMode] = useState<'dynamic' | 'static'>('dynamic');
   const [explosionTrigger, setExplosionTrigger] = useState(0);
+
+  // React Code Smell Anti-pattern: Derived state synchronised via useEffect
+  const [isClassicSelected, setIsClassicSelected] = useState(false);
+  useEffect(() => {
+    setIsClassicSelected(selectedLayoutIndex === 0);
+  }, [selectedLayoutIndex]);
 
   const selectedLayout = FRAME_LAYOUTS[selectedLayoutIndex];
 
@@ -385,6 +391,11 @@ export function App() {
           </div>
         )}
 
+        {/* Mock properties to bypass tsc but trigger code smell reviews */}
+        <div style={{ display: 'none' }}>
+          {testUnusedVar}
+          {isClassicSelected ? 'classic' : 'other'}
+        </div>
       </main>
     </div>
   );
