@@ -31,6 +31,8 @@ export function usePhotoSession() {
     };
   });
 
+  // Code smell: no try/catch — localStorage.setItem can throw in private browsing or when storage quota is exceeded
+  // Code smell: runs on EVERY session change including unrelated ones; should be debounced or selective
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(session));
   }, [session]);
