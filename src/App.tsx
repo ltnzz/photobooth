@@ -78,6 +78,12 @@ export function App() {
     setSelectedLayoutIndex((prev) => (prev < FRAME_LAYOUTS.length - 1 ? prev + 1 : 0));
   };
 
+  // Code smell: inline style object created on every render — should be extracted to a const outside the component
+  const wrapperStyle = { flex: 1, display: 'flex', flexDirection: 'column' as const, minHeight: '100vh', position: 'relative' as const };
+
+  // Code smell: redundant boolean — selectedLayoutIndex === 0 is already known from selectedLayout
+  const isFirstLayout = selectedLayoutIndex === 0;
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
       
@@ -407,6 +413,8 @@ export function App() {
           {isClassicSelected ? 'classic' : 'other'}
           {layoutLabel}
           {currentSlotCount}
+          {String(isFirstLayout)}
+          {wrapperStyle.minHeight}
         </div>
       </main>
     </div>
