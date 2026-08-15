@@ -1,13 +1,302 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  /* Ocean Palette */
+  --color-light-accent: #E3F2FD;
+  --color-soft-ocean: #90CAF9;
+  --color-deep-wave: #2196F3;
+  --color-abyss-blue: #0D47A1;
+  
+  /* Light theme background as described in mockup */
+  --bg-gradient-light: linear-gradient(180deg, #FFFFFF 0%, #E3F2FD 100%);
+  --bg-gradient-dark: linear-gradient(135deg, #071930 0%, #0d2b45 100%);
+  
+  --text-primary-light: #0D47A1;
+  --text-secondary-light: #546E7A;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+  font-family: var(--font-sans);
+  background: var(--bg-gradient-light);
+  color: var(--text-primary-light);
   min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background 0.5s ease;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Retro outline typography */
+.retro-outline {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 3rem;
+  letter-spacing: 2px;
+  color: transparent;
+  -webkit-text-stroke: 2px var(--color-abyss-blue);
+  text-transform: uppercase;
+}
+
+/* BORDER PILL - DIVE INTO THE WAVES */
+.border-pill {
+  border: 1.5px solid var(--color-deep-wave);
+  color: var(--color-deep-wave);
+  padding: 4px 14px;
+  border-radius: 50px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+/* Light Card Panel styling */
+.light-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 2px solid rgba(144, 202, 249, 0.35);
+  border-radius: 28px;
+  box-shadow: 0 15px 35px rgba(13, 71, 161, 0.08);
+  transition: all 0.3s ease;
+}
+
+.light-panel:hover {
+  border-color: rgba(33, 150, 243, 0.4);
+  box-shadow: 0 20px 45px rgba(13, 71, 161, 0.12);
+}
+
+/* Primary blue button */
+.btn-blue {
+  background-color: var(--color-abyss-blue);
+  color: #FFFFFF;
+  padding: 14px 32px;
+  border-radius: 50px;
+  border: none;
+  font-weight: 700;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(13, 71, 161, 0.25);
+  transition: all 0.2s ease;
+  letter-spacing: 1px;
+}
+
+.btn-blue:hover {
+  background-color: var(--color-deep-wave);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(33, 150, 243, 0.35);
+}
+
+/* Outline back button */
+.btn-outline-back {
+  background: #FFFFFF;
+  color: #000000;
+  border: 1px solid #000000;
+  padding: 12px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-outline-back:hover {
+  background: #F5F5F5;
+  transform: translateY(-1px);
+}
+
+/* Selected layout card styling */
+.layout-card {
+  background: #FFFFFF;
+  border: 2px solid rgba(0, 0, 0, 0.05);
+  border-radius: 20px;
+  padding: 24px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 250px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+}
+
+.layout-card.selected {
+  border-color: var(--color-deep-wave);
+  background: rgba(33, 150, 243, 0.04);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(33, 150, 243, 0.15);
+}
+
+/* Card Badge Indicator */
+.card-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--color-deep-wave);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.5px;
+}
+
+.card-footer-banner {
+  background: var(--color-deep-wave);
+  color: #fff;
+  width: 100%;
+  text-align: center;
+  padding: 6px 0;
+  font-weight: 700;
+  font-size: 0.8rem;
+  border-radius: 0 0 18px 18px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+
+/* Floating water droplet animation */
+.water-drop {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes float {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(5deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* History Button float animation */
+.history-btn {
+  width: 44px;
+  height: 44px;
+  background-color: var(--color-abyss-blue);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(13, 71, 161, 0.2);
+  transition: all 0.2s ease;
+  animation: float-up-down 3s ease-in-out infinite;
+}
+
+.history-btn:hover {
+  background-color: var(--color-deep-wave);
+  box-shadow: 0 6px 14px rgba(33, 150, 243, 0.35);
+}
+
+@keyframes float-up-down {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Wave control toggle switcher */
+.wave-control-toggle {
+  display: flex;
+  background: rgba(13, 71, 161, 0.15);
+  padding: 4px;
+  border-radius: 30px;
+  border: 1.5px solid rgba(13, 71, 161, 0.2);
+  width: fit-content;
+  align-items: center;
+}
+
+.wave-toggle-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: transparent;
+  color: var(--text-secondary-light);
+}
+
+.wave-toggle-btn.active {
+  background: var(--color-abyss-blue);
+  color: #FFFFFF;
+  box-shadow: 0 4px 10px rgba(13, 71, 161, 0.25);
+}
+
+/* Splash Feedback & Dripping Droplets */
+.splatter-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 99;
+  overflow: hidden;
+}
+
+.splatter-drop {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.35);
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
+  box-shadow: inset 0 3px 6px rgba(255, 255, 255, 0.85), inset 0 -3px 6px rgba(33, 150, 243, 0.2), 0 3px 6px rgba(13, 71, 161, 0.15);
+  transform-origin: top center;
+  backdrop-filter: blur(1px);
+  animation: drip-down 3s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+@keyframes drip-down {
+  0% {
+    transform: translateY(-40px) scale(0.3) scaleX(1);
+    opacity: 0;
+  }
+  10% {
+    transform: translateY(0) scale(1.1) scaleX(1.05);
+    opacity: 0.95;
+  }
+  25% {
+    transform: translateY(40px) scale(1.0) scaleX(0.9);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(350px) scale(0.7) scaleX(0.5);
+    opacity: 0;
+  }
 }
