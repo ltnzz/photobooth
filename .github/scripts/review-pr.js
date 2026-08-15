@@ -7,6 +7,7 @@ async function run() {
   const githubToken = process.env.GITHUB_TOKEN;
   const prNumber = process.env.PR_NUMBER;
   const repository = process.env.REPOSITORY;
+  const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 
   if (!geminiApiKey) {
     console.error('Error: GEMINI_API_KEY is not defined in the environment.');
@@ -109,8 +110,8 @@ ${projectGuidelines}
 `;
 
     // 4. Invoke Gemini API
-    console.log('Calling Gemini API for review...');
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+    console.log(`Calling Gemini API for review using model: ${modelName}...`);
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`;
     
     const requestBody = {
       contents: [
