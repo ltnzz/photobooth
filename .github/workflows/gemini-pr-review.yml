@@ -38,5 +38,5 @@ jobs:
           PR_NUMBER: ${{ github.event.issue.number }}
           REPOSITORY: ${{ github.repository }}
           COMMENT_BODY: ${{ github.event.comment.body }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.5-flash' }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.6-flash' }}
         run: node .github/scripts/review-pr.js

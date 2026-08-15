@@ -8,7 +8,7 @@ async function run() {
   const githubToken = process.env.GITHUB_TOKEN;
   const prNumber = process.env.PR_NUMBER;
   const repository = process.env.REPOSITORY;
-  const modelName = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
   if (!geminiApiKey) {
     console.error('Error: GEMINI_API_KEY is not defined in the environment.');
@@ -47,7 +47,7 @@ async function run() {
       return;
     }
 
-    // 2. Read rule guidelines from GEMINI.md or AGENTS.md if present
+    // 2. Read review guidelines from GEMINI.md or AGENTS.md
     let projectGuidelines = '';
     const geminiMdPath = path.join(process.cwd(), 'GEMINI.md');
     const agentsMdPath = path.join(process.cwd(), 'AGENTS.md');
@@ -59,10 +59,10 @@ async function run() {
       console.log('Reading review guidelines from AGENTS.md...');
       projectGuidelines = fs.readFileSync(agentsMdPath, 'utf8');
     } else {
-      console.log('No project-specific guidelines (GEMINI.md/AGENTS.md) found. Using default guidelines.');
+      console.log('No project-specific guidelines found. Using default guidelines.');
     }
 
-    // 3. Construct System Instructions
+    // 3. Build the full prompt (system instructions + diff)
     const systemInstructions = `
 You are an expert, senior software developer reviewing a Pull Request diff.
 Your task is to analyze the PR diff and provide a high-quality, professional code review.
@@ -110,15 +110,10 @@ PROJECT SPECIFIC GUIDELINES (if any):
 ${projectGuidelines}
 `;
 
-    // 4. Invoke Gemini API via @google/genai SDK with model fallback chain
-    // Primary model comes from env var; fallbacks tried in order if primary fails.
-    const modelFallbacks = [
-      modelName,
-      'gemini-2.5-flash-preview-05-20',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-    ].filter((m, i, arr) => arr.indexOf(m) === i); // deduplicate
+    const fullPrompt = `${systemInstructions}\n\nPlease review the following Pull Request diff:\n\n\`\`\`diff\n${diffText}\n\`\`\``;
+
+    // 4. Invoke Gemini via Interactions API (ai.interactions.create)
+    console.log(`Calling Gemini Interactions API using model: ${modelName}...`);
 
     const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
@@ -126,36 +121,28 @@ ${projectGuidelines}
     let usedModel = null;
     let lastError = null;
 
-    for (const candidate of modelFallbacks) {
+    // Try primary model, then one newer fallback only — no legacy models
+    const modelCandidates = [modelName, 'gemini-3.5-flash'].filter(
+      (m, i, arr) => arr.indexOf(m) === i
+    );
+
+    for (const candidate of modelCandidates) {
       console.log(`Trying model: ${candidate}...`);
       try {
-        const response = await ai.models.generateContent({
+        const interaction = await ai.interactions.create({
           model: candidate,
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: `Please review the following Pull Request diff:\n\n\`\`\`diff\n${diffText}\n\`\`\``
-                }
-              ]
-            }
-          ],
-          config: {
-            systemInstruction: systemInstructions,
-            temperature: 0.2
-          }
+          input: fullPrompt,
         });
 
-        const text = response.text;
+        const text = interaction.output_text;
         if (text && text.trim()) {
           reviewContent = text;
           usedModel = candidate;
           break;
         }
 
-        console.warn(`Model ${candidate} returned empty response, trying next...`);
-        lastError = new Error(`Model ${candidate} returned empty response.`);
+        console.warn(`Model ${candidate} returned empty output, trying next...`);
+        lastError = new Error(`Model ${candidate} returned empty output.`);
       } catch (modelError) {
         const safeErr = String(modelError).replace(geminiApiKey || '', '[REDACTED]');
         console.warn(`Model ${candidate} failed: ${safeErr}`);
@@ -164,23 +151,23 @@ ${projectGuidelines}
     }
 
     if (!reviewContent || !usedModel) {
-      // Post diagnostic comment to PR so error is visible without checking Actions
+      // Post diagnostic comment directly to PR so error is visible without opening Actions
       const safeLastError = String(lastError).replace(geminiApiKey || '', '[REDACTED]');
       const diagnosticComment = [
         '### 🤖 Gemini AI Code Review — ❌ Failed',
         '',
-        '**All models in the fallback chain returned an error or empty response.**',
+        '**All models returned an error or empty response.**',
         '',
         '| Model tried | Result |',
         '|---|---|',
-        ...modelFallbacks.map(m => `| \`${m}\` | failed or empty |`),
+        ...modelCandidates.map(m => `| \`${m}\` | failed or empty |`),
         '',
         '**Last error:**',
         '```',
         safeLastError,
         '```',
         '',
-        '_Check the GitHub Actions log for full details. Make sure `GEMINI_API_KEY` in repository secrets is valid and the key has access to a Gemini model._'
+        '_Check the GitHub Actions log for details. Verify `GEMINI_API_KEY` in repository secrets is valid and has access to Gemini 3.x models._'
       ].join('\n');
 
       await postComment(repository, prNumber, githubToken, diagnosticComment);
@@ -190,13 +177,13 @@ ${projectGuidelines}
 
     const finalComment = `### 🤖 Gemini AI Code Review\n\n> Model: \`${usedModel}\`\n\n${reviewContent}`;
 
-    // 5. Post comment on the PR
-    console.log(`Posting review comment to PR (model: ${usedModel})...`);
+    // 5. Post review comment to PR
+    console.log(`Posting review to PR (model: ${usedModel})...`);
     await postComment(repository, prNumber, githubToken, finalComment);
     console.log('Review posted successfully!');
 
   } catch (error) {
-    // Log error message but never expose the API key
+    // Never expose the API key in logs
     const safeMessage = String(error).replace(geminiApiKey || '', '[REDACTED]');
     console.error('Error during AI review execution:', safeMessage);
     process.exit(1);
@@ -217,7 +204,7 @@ async function postComment(repository, prNumber, token, body) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Failed to post comment to PR: ${response.status} ${response.statusText}\n${errorText}`);
+    throw new Error(`Failed to post comment: ${response.status} ${response.statusText}\n${errorText}`);
   }
 }
 
