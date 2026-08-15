@@ -110,7 +110,7 @@ ${projectGuidelines}
 
     // 4. Invoke Gemini API
     console.log('Calling Gemini API for review...');
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
     
     const requestBody = {
       contents: [
