@@ -52,7 +52,7 @@ npm run dev
 
 The application will be running at `http://localhost:5173`.
 
-### Scripts
+### NPM Scripts
 | Command | Description |
 |---|---|
 | `npm run dev` | Start local Vite development server |
@@ -62,12 +62,34 @@ The application will be running at `http://localhost:5173`.
 
 ---
 
+## 🌿 Standard Git & Feature Branch Workflow
+
+Follow these standard steps whenever developing a new feature or bugfix:
+
+```bash
+# 1. Ensure your local main is up to date
+git checkout main
+git pull origin main
+
+# 2. Create and switch to a new feature branch
+git checkout -b feature/your-feature-name
+
+# 3. Work on your changes, stage, and commit (Husky will automatically run ESLint)
+git add .
+git commit -m "feat: add description of your changes"
+
+# 4. Push your branch to GitHub
+git push -u origin feature/your-feature-name
+```
+
+---
+
 ## 🤖 Automated Gemini AI Code Review
 
 This repository is equipped with an automated AI code review bot that analyzes Pull Request diffs against custom project guidelines (`GEMINI.md`).
 
 ### How to trigger a review:
-1. Open a Pull Request.
+1. Open a Pull Request on GitHub from your feature branch to `main`.
 2. Comment **`review`** or **`/review`** on the PR conversation.
 3. The bot will:
    * Instantly acknowledge with an **`👀` (eyes)** emoji reaction.

@@ -45,7 +45,7 @@ jobs:
             }
 
             // 2. Post instant loading progress comment
-            const initialBody = `### 🤖 Gemini AI Code Review\n\n> *Running automated AI review pipeline...*\n\n- [x] ⚡ Memulai workflow ulasan AI\n- [ ] 📦 Menyiapkan dependensi & mengambil diff PR...\n- [ ] 📋 Membaca pedoman arsitektur \`GEMINI.md\`\n- [ ] 🔍 Menganalisis Code Correctness & React Patterns\n- [ ] 📝 Menyusun ulasan`;
+            const initialBody = `### Gemini Code Review\n\n*Running automated review pipeline...*\n\n- [x] Initializing review workflow\n- [ ] Setting up environment and fetching PR diff...\n- [ ] Loading project guidelines (\`GEMINI.md\`)\n- [ ] Evaluating code correctness and spec alignment\n- [ ] Preparing review summary`;
             
             const comment = await github.rest.issues.createComment({
               owner: context.repo.owner,

@@ -28,15 +28,61 @@ async function run() {
   let statusCommentId = initialCommentId ? Number(initialCommentId) : null;
 
   try {
-    // 1. If reaction not added yet, add 'eyes' reaction
-    if (commentId && !initialCommentId) {
-      await addReaction(repository, commentId, githubToken, 'eyes');
+    // 1. Fetch Pull Request details (Title, Body, Base/Head)
+    console.log(`Fetching PR metadata for #${prNumber}...`);
+    const prUrl = `https://api.github.com/repos/${repository}/pulls/${prNumber}`;
+    const prResponse = await fetch(prUrl, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': `token ${githubToken}`,
+        'User-Agent': 'gemini-pr-reviewer'
+      }
+    });
+
+    let prTitle = '';
+    let prBody = '';
+    if (prResponse.ok) {
+      const prData = await prResponse.json();
+      prTitle = prData.title || '';
+      prBody = prData.body || '';
     }
 
-    // 2. Fetch Pull Request diff
+    // 2. Fetch Linked Issues if any
+    let linkedIssueContext = '';
+    const issueMatches = [
+      ...prBody.matchAll(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|ref|issue)\s*#(\d+)/gi),
+      ...prBody.matchAll(/#(\d+)/g)
+    ];
+
+    const referencedIssueNumbers = [...new Set(issueMatches.map((m) => m[1]))].filter(
+      (num) => num !== prNumber.toString()
+    );
+
+    if (referencedIssueNumbers.length > 0) {
+      console.log(`Found linked issues: #${referencedIssueNumbers.join(', #')}...`);
+      for (const issueNum of referencedIssueNumbers.slice(0, 3)) {
+        try {
+          const issueUrl = `https://api.github.com/repos/${repository}/issues/${issueNum}`;
+          const issueRes = await fetch(issueUrl, {
+            headers: {
+              'Accept': 'application/vnd.github.v3+json',
+              'Authorization': `token ${githubToken}`,
+              'User-Agent': 'gemini-pr-reviewer'
+            }
+          });
+          if (issueRes.ok) {
+            const issueData = await issueRes.json();
+            linkedIssueContext += `\n--- LINKED ISSUE #${issueNum}: "${issueData.title}" ---\n${issueData.body || 'No description provided.'}\n`;
+          }
+        } catch (e) {
+          console.warn(`Failed to fetch linked issue #${issueNum}:`, e.message);
+        }
+      }
+    }
+
+    // 3. Fetch Pull Request diff
     console.log(`Fetching PR diff for #${prNumber}...`);
-    const diffUrl = `https://api.github.com/repos/${repository}/pulls/${prNumber}`;
-    const diffResponse = await fetch(diffUrl, {
+    const diffResponse = await fetch(prUrl, {
       headers: {
         'Accept': 'application/vnd.github.v3.diff',
         'Authorization': `token ${githubToken}`,
@@ -56,20 +102,20 @@ async function run() {
         prNumber,
         githubToken,
         statusCommentId,
-        '### 🤖 Gemini AI Code Review\n\n- [x] 📥 Perubahan PR kosong. Tidak ada file yang perlu ditinjau.'
+        '### Gemini Code Review\n\n- [x] Perubahan PR kosong. Tidak ada file yang perlu ditinjau.'
       );
       return;
     }
 
-    // 4. Update progress to Step 2 & Read review guidelines
-    const step2Msg = `### 🤖 Gemini AI Code Review
+    // 4. Update progress & Read review guidelines
+    const step2Msg = `### Gemini Code Review
 
-> *Running automated AI review pipeline...*
+*Analyzing pull request changes...*
 
-- [x] 📥 Mengambil diff & perubahan file PR (${diffText.split('\n').length} baris diff)
-- [x] 📋 Membaca pedoman arsitektur \`GEMINI.md\`
-- [ ] 🔍 **Menganalisis Code Correctness, React Patterns, & Code Smells dengan Gemini AI...**
-- [ ] 📝 Menyusun ringkasan ulasan`;
+- [x] Fetching PR metadata & linked issues (${referencedIssueNumbers.length > 0 ? `#${referencedIssueNumbers.join(', #')}` : 'none'})
+- [x] Loading project guidelines (\`GEMINI.md\`)
+- [ ] Analyzing code correctness, React patterns, and PR spec alignment...
+- [ ] Preparing review summary`;
 
     await updateComment(repository, statusCommentId, githubToken, step2Msg).catch(() => {});
 
@@ -78,43 +124,64 @@ async function run() {
     const agentsMdPath = path.join(process.cwd(), 'AGENTS.md');
 
     if (fs.existsSync(geminiMdPath)) {
-      console.log('Reading review guidelines from GEMINI.md...');
       projectGuidelines = fs.readFileSync(geminiMdPath, 'utf8');
     } else if (fs.existsSync(agentsMdPath)) {
-      console.log('Reading review guidelines from AGENTS.md...');
       projectGuidelines = fs.readFileSync(agentsMdPath, 'utf8');
     }
 
     // 5. Build system instructions
     const systemInstructions = `
-You are an expert, senior software developer reviewing a Pull Request diff.
-Your task is to analyze the PR diff and provide a high-quality, professional code review.
+You are an expert software engineer reviewing a Pull Request diff.
+Your task is to analyze the PR diff and provide an objective, professional code review.
 
-GUIDELINES FOR REVIEW FOCUS:
-1. Code Correctness (potential bugs, edge cases, error handling)
-2. Code Smells (redundant state, unused variables, magic numbers/strings, messy JSX)
-3. Architecture & Reusability (reusing existing hooks, components, utilities)
-4. TypeScript & Type Consistency (proper typing, no unexplained 'any')
-5. Performance & React Best Practices (unnecessary re-renders, useEffect anti-patterns)
+CRITICAL RESPONSIBILITY — PR & ISSUE SPEC ALIGNMENT:
+- You are provided with the PR Title, PR Description, and any Linked Issue requirements.
+- Verify whether the implemented code in the diff satisfies what was requested in the PR Description and Linked Issue.
+- Check if any requested features, edge cases, or acceptance criteria mentioned in the PR description / Issue were missed or only half-implemented.
+
+REVIEW FOCUS:
+1. Requirements & Spec Alignment: Check if the diff satisfies the PR description / Issue goals.
+2. Code Correctness: Potential bugs, edge cases, state management issues, error handling.
+3. Code Smells: Redundant state, unused variables, magic numbers/strings, messy JSX.
+4. Architecture & Reuse: Check if existing components, hooks, or helpers are properly reused.
+5. TypeScript & Best Practices: Proper typing, no unexplained 'any', no anti-patterns.
 
 IMPORTANT RULES:
-- Do NOT praise the code. Be strictly objective.
-- Only report actionable findings that create risk, technical debt, or violate project conventions.
+- Do NOT praise the code. Be strictly objective and professional.
+- Avoid unnecessary emojis or informal language.
+- Only report actionable findings that create risk, technical debt, or violate specifications/guidelines.
 - Do not report subjective stylistic preferences.
 - If there are no actionable issues, output exactly: "No actionable issues found."
 - Prioritize findings by Severity (Critical, High, Medium, Low).
 
 For every finding, format as:
 - **[SEVERITY] File: [file path] (Line: [relevant line number])**
-  - **Issue:** [Short explanation]
-  - **Why it matters:** [Risk or maintenance impact]
-  - **Recommendation:** [Concrete code recommendation]
+  - **Issue:** [Short explanation of what is wrong or missing according to PR/Issue spec]
+  - **Why it matters:** [Risk, discrepancy from specification, or maintenance impact]
+  - **Recommendation:** [Concrete code or architectural recommendation]
 
 PROJECT SPECIFIC GUIDELINES (if any):
 ${projectGuidelines}
 `;
 
-    const fullPrompt = `${systemInstructions}\n\nPlease review the following Pull Request diff:\n\n\`\`\`diff\n${diffText}\n\`\`\``;
+    const fullPrompt = `
+${systemInstructions}
+
+==================================================
+PULL REQUEST TITLE:
+"${prTitle}"
+
+PULL REQUEST DESCRIPTION:
+${prBody || 'No PR description provided.'}
+
+${linkedIssueContext ? `LINKED ISSUE DETAILS:\n${linkedIssueContext}` : 'NO LINKED ISSUE FOUND.'}
+==================================================
+
+PULL REQUEST DIFF:
+\`\`\`diff
+${diffText}
+\`\`\`
+`;
 
     // 6. Invoke Gemini Interactions API
     console.log(`Calling Gemini API...`);
@@ -148,28 +215,29 @@ ${projectGuidelines}
 
     if (!reviewContent || !usedModel) {
       const safeLastError = String(lastError).replace(geminiApiKey || '', '[REDACTED]');
-      const diagnosticComment = `### 🤖 Gemini AI Code Review — ❌ Failed\n\n**Error:**\n\`\`\`\n${safeLastError}\n\`\`\``;
+      const diagnosticComment = `### Gemini Code Review — Error\n\n\`\`\`\n${safeLastError}\n\`\`\``;
       await updateOrPostComment(repository, prNumber, githubToken, statusCommentId, diagnosticComment);
       process.exit(1);
     }
 
-    // 7. Final structured report with scope verification checklist
-    const finalComment = `### 🤖 Gemini AI Code Review
+    // 7. Final structured report (clean, no excessive emojis)
+    const finalComment = `### Gemini Code Review
 
 <details open>
-<summary><b>📋 Review Scope & Automated Checks</b></summary>
+<summary><b>Review Scope & Automated Checks</b></summary>
 
-- [x] 🔍 **Code Correctness & Logic**: Verifikasi edge cases, null/undefined safety & error handling
-- [x] ⚛️ **React Best Practices**: Pemeriksaan state derivation, hook dependency & unnecessary re-renders
-- [x] 🏗️ **Architecture & Reuse**: Memastikan reusabilitas utilitas, hooks, dan komponen yang ada
-- [x] 📐 **TypeScript Strictness**: Konsistensi tipe data & domain types
-- [x] 📖 **Project Guidelines**: Keselarasan terhadap aturan proyek di \`GEMINI.md\`
+- [x] **PR & Issue Spec Alignment**: Evaluated diff against PR description ${referencedIssueNumbers.length > 0 ? `and Issue #${referencedIssueNumbers.join(', #')}` : ''}
+- [x] **Code Correctness & Logic**: Edge cases, null/undefined safety & error handling
+- [x] **React Best Practices**: State derivation, hook dependencies & render performance
+- [x] **Architecture & Reuse**: Component and utility reuse
+- [x] **TypeScript Strictness**: Type consistency and domain types
+- [x] **Project Guidelines**: Compliance with rules in \`GEMINI.md\`
 
 </details>
 
 ---
 
-#### 📝 Findings & Feedback
+#### Findings & Feedback
 
 ${reviewContent}`;
 
@@ -177,9 +245,9 @@ ${reviewContent}`;
     console.log(`Updating PR comment with review results...`);
     await updateOrPostComment(repository, prNumber, githubToken, statusCommentId, finalComment);
 
-    // 9. Add 'rocket' reaction to trigger comment to indicate completion
+    // 9. Add reaction to indicate completion
     if (commentId) {
-      await addReaction(repository, commentId, githubToken, 'rocket');
+      await addReaction(repository, commentId, githubToken, '+1');
     }
 
     console.log('Review posted successfully!');
@@ -189,7 +257,7 @@ ${reviewContent}`;
     console.error('Error during AI review execution:', safeMessage);
 
     if (statusCommentId) {
-      const errComment = `### 🤖 Gemini AI Code Review — ❌ Error\n\n\`\`\`\n${safeMessage}\n\`\`\``;
+      const errComment = `### Gemini Code Review — Error\n\n\`\`\`\n${safeMessage}\n\`\`\``;
       await updateComment(repository, statusCommentId, githubToken, errComment).catch(() => {});
     }
 
