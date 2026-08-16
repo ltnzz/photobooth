@@ -10,7 +10,14 @@ jobs:
 
     if: >
       github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/review')
+      (
+        startsWith(github.event.comment.body, 'review') ||
+        startsWith(github.event.comment.body, 'Review') ||
+        startsWith(github.event.comment.body, '/review') ||
+        startsWith(github.event.comment.body, '/Review') ||
+        contains(github.event.comment.body, 'review') ||
+        contains(github.event.comment.body, 'Review')
+      )
 
     runs-on: ubuntu-latest
 
