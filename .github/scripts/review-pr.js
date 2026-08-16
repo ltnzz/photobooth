@@ -8,6 +8,7 @@ async function run() {
   const githubToken = process.env.GITHUB_TOKEN;
   const prNumber = process.env.PR_NUMBER;
   const repository = process.env.REPOSITORY;
+  const commentId = process.env.COMMENT_ID;
   const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
   if (!geminiApiKey) {
@@ -23,10 +24,26 @@ async function run() {
     process.exit(1);
   }
 
+  let statusCommentId = null;
+
   try {
+    // 1. Add 'eyes' reaction to the trigger comment immediately for visual feedback
+    if (commentId) {
+      await addReaction(repository, commentId, githubToken, 'eyes');
+    }
+
+    // 2. Post initial loading status comment on PR
+    console.log(`Posting initial loading status on PR #${prNumber}...`);
+    statusCommentId = await postComment(
+      repository,
+      prNumber,
+      githubToken,
+      '⏳ *Gemini Code Reviewer is analyzing this Pull Request diff...*'
+    );
+
     console.log(`Fetching PR diff for #${prNumber} from repository ${repository}...`);
 
-    // 1. Fetch Pull Request diff
+    // 3. Fetch Pull Request diff
     const diffUrl = `https://api.github.com/repos/${repository}/pulls/${prNumber}`;
     const diffResponse = await fetch(diffUrl, {
       headers: {
@@ -43,11 +60,17 @@ async function run() {
 
     if (!diffText.trim()) {
       console.log('PR diff is empty. Skipping review.');
-      await postComment(repository, prNumber, githubToken, 'PR diff is empty. Nothing to review.');
+      await updateOrPostComment(
+        repository,
+        prNumber,
+        githubToken,
+        statusCommentId,
+        '### 🤖 Gemini AI Code Review\n\nPR diff is empty. Nothing to review.'
+      );
       return;
     }
 
-    // 2. Read review guidelines from GEMINI.md or AGENTS.md
+    // 4. Read review guidelines from GEMINI.md or AGENTS.md
     let projectGuidelines = '';
     const geminiMdPath = path.join(process.cwd(), 'GEMINI.md');
     const agentsMdPath = path.join(process.cwd(), 'AGENTS.md');
@@ -62,7 +85,7 @@ async function run() {
       console.log('No project-specific guidelines found. Using default guidelines.');
     }
 
-    // 3. Build the full prompt (system instructions + diff)
+    // 5. Build the full prompt (system instructions + diff)
     const systemInstructions = `
 You are an expert, senior software developer reviewing a Pull Request diff.
 Your task is to analyze the PR diff and provide a high-quality, professional code review.
@@ -112,7 +135,7 @@ ${projectGuidelines}
 
     const fullPrompt = `${systemInstructions}\n\nPlease review the following Pull Request diff:\n\n\`\`\`diff\n${diffText}\n\`\`\``;
 
-    // 4. Invoke Gemini via Interactions API (ai.interactions.create)
+    // 6. Invoke Gemini via Interactions API
     console.log(`Calling Gemini Interactions API using model: ${modelName}...`);
 
     const ai = new GoogleGenAI({ apiKey: geminiApiKey });
@@ -121,7 +144,6 @@ ${projectGuidelines}
     let usedModel = null;
     let lastError = null;
 
-    // Try primary model, then one newer fallback only — no legacy models
     const modelCandidates = [modelName, 'gemini-3.5-flash'].filter(
       (m, i, arr) => arr.indexOf(m) === i
     );
@@ -151,7 +173,6 @@ ${projectGuidelines}
     }
 
     if (!reviewContent || !usedModel) {
-      // Post diagnostic comment directly to PR so error is visible without opening Actions
       const safeLastError = String(lastError).replace(geminiApiKey || '', '[REDACTED]');
       const diagnosticComment = [
         '### 🤖 Gemini AI Code Review — ❌ Failed',
@@ -167,26 +188,55 @@ ${projectGuidelines}
         safeLastError,
         '```',
         '',
-        '_Check the GitHub Actions log for details. Verify `GEMINI_API_KEY` in repository secrets is valid and has access to Gemini 3.x models._'
+        '_Check the GitHub Actions log for details. Verify `GEMINI_API_KEY` in repository secrets is valid._'
       ].join('\n');
 
-      await postComment(repository, prNumber, githubToken, diagnosticComment);
+      await updateOrPostComment(repository, prNumber, githubToken, statusCommentId, diagnosticComment);
       console.error('All models failed. Diagnostic comment posted to PR.');
       process.exit(1);
     }
 
-    const finalComment = `### 🤖 Gemini AI Code Review\n\n> Model: \`${usedModel}\`\n\n${reviewContent}`;
+    // Clean final review output without model header text
+    const finalComment = `### 🤖 Gemini AI Code Review\n\n${reviewContent}`;
 
-    // 5. Post review comment to PR
-    console.log(`Posting review to PR (model: ${usedModel})...`);
-    await postComment(repository, prNumber, githubToken, finalComment);
+    // 7. Update status comment with full review
+    console.log(`Updating PR comment with review results...`);
+    await updateOrPostComment(repository, prNumber, githubToken, statusCommentId, finalComment);
+
+    // 8. Add 'rocket' reaction to trigger comment to indicate completion
+    if (commentId) {
+      await addReaction(repository, commentId, githubToken, 'rocket');
+    }
+
     console.log('Review posted successfully!');
 
   } catch (error) {
-    // Never expose the API key in logs
     const safeMessage = String(error).replace(geminiApiKey || '', '[REDACTED]');
     console.error('Error during AI review execution:', safeMessage);
+
+    if (statusCommentId) {
+      const errComment = `### 🤖 Gemini AI Code Review — ❌ Error\n\nAn unexpected error occurred during review:\n\`\`\`\n${safeMessage}\n\`\`\``;
+      await updateComment(repository, statusCommentId, githubToken, errComment).catch(() => {});
+    }
+
     process.exit(1);
+  }
+}
+
+async function addReaction(repository, commentId, token, content) {
+  try {
+    const url = `https://api.github.com/repos/${repository}/issues/comments/${commentId}/reactions`;
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/vnd.github.squirrel-girl-preview+json',
+        'Authorization': `token ${token}`,
+        'User-Agent': 'gemini-pr-reviewer'
+      },
+      body: JSON.stringify({ content })
+    });
+  } catch (e) {
+    console.warn(`Failed to add reaction '${content}':`, e.message);
   }
 }
 
@@ -206,6 +256,38 @@ async function postComment(repository, prNumber, token, body) {
     const errorText = await response.text();
     throw new Error(`Failed to post comment: ${response.status} ${response.statusText}\n${errorText}`);
   }
+  const data = await response.json();
+  return data.id;
+}
+
+async function updateComment(repository, commentId, token, body) {
+  const commentUrl = `https://api.github.com/repos/${repository}/issues/comments/${commentId}`;
+  const response = await fetch(commentUrl, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `token ${token}`,
+      'User-Agent': 'gemini-pr-reviewer'
+    },
+    body: JSON.stringify({ body })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to update comment: ${response.status} ${response.statusText}\n${errorText}`);
+  }
+}
+
+async function updateOrPostComment(repository, prNumber, token, commentId, body) {
+  if (commentId) {
+    try {
+      await updateComment(repository, commentId, token, body);
+      return;
+    } catch (e) {
+      console.warn('Failed to update comment, fallback to posting new comment:', e.message);
+    }
+  }
+  await postComment(repository, prNumber, token, body);
 }
 
 run();
