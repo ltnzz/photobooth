@@ -13,11 +13,9 @@ const LOCAL_STORAGE_KEY = 'ocean_flow_photobooth_session';
 
 export function usePhotoSession() {
   const [session, setSession] = useState<PhotoSessionState>(() => {
-    // Code smell: magic string duplicated inline instead of using LOCAL_STORAGE_KEY constant
-    const saved = localStorage.getItem('ocean_flow_photobooth_session');
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
       try {
-        // Code smell: no validation of parsed shape — any malformed JSON in localStorage silently produces bad state
         return JSON.parse(saved);
       } catch (e) {
         console.error('Failed to parse photo session', e);
@@ -31,8 +29,6 @@ export function usePhotoSession() {
     };
   });
 
-  // Code smell: no try/catch — localStorage.setItem can throw in private browsing or when storage quota is exceeded
-  // Code smell: runs on EVERY session change including unrelated ones; should be debounced or selective
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(session));
   }, [session]);

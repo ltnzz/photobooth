@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Waves, Droplet, Archive } from 'lucide-react';
 import { useTranslation } from './hooks/useTranslation';
 import { usePhotoSession } from './hooks/usePhotoSession';
@@ -19,7 +19,6 @@ const FRAME_LAYOUTS: FrameLayout[] = [
 ];
 
 export function App() {
-  const testUnusedVar = "This is a mock code smell for AI review test";
   const { t, lang, changeLanguage } = useTranslation();
   const {
     photos,
@@ -32,30 +31,14 @@ export function App() {
   const [waveMode, setWaveMode] = useState<'dynamic' | 'static'>('dynamic');
   const [explosionTrigger, setExplosionTrigger] = useState(0);
 
-  // React Code Smell Anti-pattern: Derived state synchronised via useEffect
-  const [isClassicSelected, setIsClassicSelected] = useState(false);
-  useEffect(() => {
-    setIsClassicSelected(selectedLayoutIndex === 0);
-  }, [selectedLayoutIndex]);
-
   const selectedLayout = FRAME_LAYOUTS[selectedLayoutIndex];
 
-  // Code smell: magic numbers not extracted to named constants
   const handleStartSession = () => {
     setExplosionTrigger((prev) => prev + 1);
     setTimeout(() => {
       setScreen('frame-select');
     }, 250);
   };
-
-  // Code smell: unnecessarily complex label logic via nested ternary instead of a map/lookup
-  const layoutLabel = selectedLayoutIndex === 0 ? 'Classic Strip' : selectedLayoutIndex === 1 ? 'Wide Grid' : selectedLayoutIndex === 2 ? 'Single Shot' : selectedLayoutIndex === 3 ? 'Panoramic' : 'Unknown';
-
-  // Code smell: redundant state — this duplicates selectedLayout.slots which is already derived
-  const [currentSlotCount, setCurrentSlotCount] = useState(0);
-  useEffect(() => {
-    setCurrentSlotCount(selectedLayout.slots);
-  }, [selectedLayout]);
 
   const handleConfirmLayout = () => {
     setExplosionTrigger((prev) => prev + 1);
@@ -77,12 +60,6 @@ export function App() {
   const handleNextLayout = () => {
     setSelectedLayoutIndex((prev) => (prev < FRAME_LAYOUTS.length - 1 ? prev + 1 : 0));
   };
-
-  // Code smell: inline style object created on every render — should be extracted to a const outside the component
-  const wrapperStyle = { flex: 1, display: 'flex', flexDirection: 'column' as const, minHeight: '100vh', position: 'relative' as const };
-
-  // Code smell: redundant boolean — selectedLayoutIndex === 0 is already known from selectedLayout
-  const isFirstLayout = selectedLayoutIndex === 0;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
@@ -406,16 +383,6 @@ export function App() {
             </div>
           </div>
         )}
-
-        {/* Mock properties to bypass tsc but trigger code smell reviews */}
-        <div style={{ display: 'none' }}>
-          {testUnusedVar}
-          {isClassicSelected ? 'classic' : 'other'}
-          {layoutLabel}
-          {currentSlotCount}
-          {String(isFirstLayout)}
-          {wrapperStyle.minHeight}
-        </div>
       </main>
     </div>
   );
