@@ -32,19 +32,17 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // 1. Add instant eyes reaction to user comment
             try {
               await github.rest.reactions.createForIssueComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 comment_id: context.payload.comment.id,
-                content: 'eyes'
+                content: '+1'
               });
             } catch (e) {
               console.log('Failed to add reaction:', e.message);
             }
 
-            // 2. Post instant loading progress comment
             const initialBody = `### Gemini Code Review\n\n*Running automated review pipeline...*\n\n- [x] Initializing review workflow\n- [ ] Setting up environment and fetching PR diff...\n- [ ] Loading project guidelines (\`GEMINI.md\`)\n- [ ] Evaluating code correctness and spec alignment\n- [ ] Preparing review summary`;
             
             const comment = await github.rest.issues.createComment({
@@ -66,7 +64,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci
 
       - name: Run Review Script
         env:
