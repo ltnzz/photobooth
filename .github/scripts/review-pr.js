@@ -9,6 +9,7 @@ async function run() {
   const prNumber = process.env.PR_NUMBER;
   const repository = process.env.REPOSITORY;
   const commentId = process.env.COMMENT_ID;
+  const initialCommentId = process.env.INITIAL_COMMENT_ID;
   const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
   if (!geminiApiKey) {
@@ -24,28 +25,15 @@ async function run() {
     process.exit(1);
   }
 
-  let statusCommentId = null;
+  let statusCommentId = initialCommentId ? Number(initialCommentId) : null;
 
   try {
-    // 1. Add 'eyes' reaction to the trigger comment immediately
-    if (commentId) {
+    // 1. If reaction not added yet, add 'eyes' reaction
+    if (commentId && !initialCommentId) {
       await addReaction(repository, commentId, githubToken, 'eyes');
     }
 
-    // 2. Post initial live progress checklist on PR
-    const step1Msg = `### 🤖 Gemini AI Code Review
-
-> *Running automated AI review pipeline...*
-
-- [ ] 📥 Mengambil diff & perubahan file PR...
-- [ ] 📋 Membaca pedoman arsitektur \`GEMINI.md\`
-- [ ] 🔍 Menganalisis Code Correctness, React Patterns, & Code Smells
-- [ ] 📝 Menyusun ringkasan ulasan`;
-
-    console.log(`Posting initial progress on PR #${prNumber}...`);
-    statusCommentId = await postComment(repository, prNumber, githubToken, step1Msg);
-
-    // 3. Fetch Pull Request diff
+    // 2. Fetch Pull Request diff
     console.log(`Fetching PR diff for #${prNumber}...`);
     const diffUrl = `https://api.github.com/repos/${repository}/pulls/${prNumber}`;
     const diffResponse = await fetch(diffUrl, {
